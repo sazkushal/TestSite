@@ -4,32 +4,112 @@
 <meta charset="UTF-8">
 <title>My Simple Blog</title>
 <style>
-body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-h1 { text-align: center; }
-.post { border-bottom: 1px solid #ccc; padding: 15px 0; }
-.post h2 { margin: 0; }
-.post .date { font-size: 0.9em; color: gray; }
+/* General layout */
+body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: #f4f4f9;
+    margin: 0;
+    padding: 0;
+}
+.container {
+    max-width: 800px;
+    margin: 50px auto;
+    padding: 20px;
+}
+
+/* Header */
+h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 40px;
+}
+
+/* Posts */
+.post {
+    background: #fff;
+    margin-bottom: 30px;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    transition: transform 0.2s ease;
+}
+.post:hover {
+    transform: translateY(-3px);
+}
+.post h2 {
+    margin-top: 0;
+    color: #007bff;
+}
+.post .date {
+    font-size: 0.9em;
+    color: gray;
+    margin-bottom: 15px;
+}
+.post img {
+    max-width: 100%;
+    margin: 15px 0;
+    border-radius: 5px;
+}
+.post p {
+    line-height: 1.6;
+    color: #333;
+}
+
+/* Footer / no posts */
+.no-posts {
+    text-align: center;
+    color: #666;
+    font-style: italic;
+    margin-top: 50px;
+}
 </style>
 </head>
 <body>
+
+<div class="container">
 <h1>My Simple Blog</h1>
 <div id="posts"></div>
+</div>
 
 <script>
-fetch('posts.json')
+// Fetch posts.json from your GitHub repo
+const username = 'sazkushal';  // replace with your username
+const repo = 'TestSite';       // replace with your repo
+const branch = 'main';         // replace if needed
+
+fetch(`https://raw.githubusercontent.com/${username}/${repo}/${branch}/posts.json`)
 .then(response => response.json())
 .then(posts => {
     const postsDiv = document.getElementById('posts');
+    if (!posts || posts.length === 0) {
+        postsDiv.innerHTML = '<div class="no-posts">No posts yet. Add some!</div>';
+        return;
+    }
+
+    // Show newest first
     posts.reverse().forEach(post => {
         const postEl = document.createElement('div');
         postEl.className = 'post';
-        postEl.innerHTML = `<h2>${post.title}</h2>
-                             <div class="date">${post.date}</div>
-                             <p>${post.content}</p>`;
+
+        let html = `<h2>${post.title}</h2>
+                    <div class="date">${post.date}</div>`;
+
+        if(post.image) {
+            html += `<img src="${post.image}" alt="Post Image">`;
+        }
+
+        // Convert newlines to <br>
+        html += `<p>${post.content.replace(/\n/g,'<br>')}</p>`;
+
+        postEl.innerHTML = html;
         postsDiv.appendChild(postEl);
     });
 })
-.catch(err => console.error('Error loading posts:', err));
+.catch(err => {
+    console.error('Error loading posts:', err);
+    document.getElementById('posts').innerHTML = '<div class="no-posts">Failed to load posts.</div>';
+});
 </script>
+
 </body>
 </html>
