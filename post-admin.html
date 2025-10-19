@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Add Blog Post</title>
+<style>
+body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+input, textarea { width: 100%; padding: 10px; margin: 10px 0; }
+button { padding: 10px 20px; }
+</style>
+</head>
+<body>
+<h1>Add Blog Post</h1>
+
+<label>GitHub Username:</label>
+<input type="text" id="username" placeholder="Your GitHub username">
+<label>Repository Name:</label>
+<input type="text" id="repo" placeholder="Repo containing posts.json">
+<label>Branch Name:</label>
+<input type="text" id="branch" placeholder="e.g., main">
+<label>Personal Access Token:</label>
+<input type="password" id="token" placeholder="GitHub PAT">
+<hr>
+
+<input type="text" id="title" placeholder="Post Title">
+<textarea id="content" placeholder="Post Content" rows="6"></textarea>
+<button onclick="addPost()">Add Post to GitHub</button>
+
+<pre id="output"></pre>
+
+<script>
+async function addPost() {
+    const username = document.getElementById('username').value.trim();
+    const repo = document.getElementById('repo').value.trim();
+    const branch = document.getElementById('branch').value.trim() || 'main';
+    const token = document.getElementById('token').value.trim();
+    const title = document.getElementById('title').value.trim();
+    const content = document.getElementById('content').value.trim();
+    const date = new Date().toISOString().split('T')[0];
+
+    if(!username || !repo || !token || !title || !content) {
+        alert("Fill all fields.");
+        return;
+    }
+
+    const newPost = { title, date, content };
+
+    try {
+        // 1. Get current posts.json
+        const getResp = await fetch(`https://api.github.com/repos/${username}/${repo}/contents/posts.json?ref=${branch}`, {
+            headers: { Authorization: `token ${token}` }
+        });
+        const data = await getResp.json();
+        const sha = data.sha;
+        const existingContent = JSON.parse(atob(data.content));
+
+        // 2. Append new post
+        existingContent.push(newPost);
+
+        // 3. Update posts.json on GitHub
+        const updateResp = await fetch(`https://api.github.com/repos/${username}/${repo}/contents/posts.json`, {
+            method: 'PUT',
+            headers: {
+                Authorization: `token ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: `Add post: ${title}`,
+                content: btoa(JSON.stringify(existingContent, null, 2)),
+                sha: sha,
+                branch: branch
+            })
+        });
+
+        const updateData = await updateResp.json();
+        if(updateData.content) {
+            document.getElementById('output').textContent = `Post added successfully! Check your blog.`;
+        } else {
+            document.getElementById('output').textContent = `Error: ${JSON.stringify(updateData)}`;
+        }
+
+    } catch(err) {
+        document.getElementById('output').textContent = 'Error: ' + err;
+        console.error(err);
+    }
+}
+</script>
+</body>
+</html>
