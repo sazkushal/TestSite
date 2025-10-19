@@ -4,15 +4,84 @@
 <meta charset="UTF-8">
 <title>Add Blog Post</title>
 <style>
-body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
-input, textarea { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
-button { padding: 10px 20px; cursor: pointer; }
-pre { background: #f4f4f4; padding: 10px; overflow-x: auto; }
-hr { margin: 20px 0; }
+/* General Layout */
+body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: #f9f9f9;
+    margin: 0;
+    padding: 0;
+}
+.container {
+    max-width: 700px;
+    margin: 50px auto;
+    background: #fff;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    border-radius: 8px;
+}
+
+/* Headings */
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+/* Inputs and Textareas */
+input, textarea {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0 20px 0;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
+/* Buttons */
+button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.3s ease;
+}
+button:hover {
+    background: #0056b3;
+}
+
+/* Live preview */
+.preview {
+    border: 1px solid #ddd;
+    padding: 15px;
+    margin-top: 20px;
+    border-radius: 5px;
+    background: #fafafa;
+}
+.preview img {
+    max-width: 100%;
+    display: block;
+    margin: 10px 0;
+}
+
+/* Output/Error */
+pre#output {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f4f4f4;
+    border-radius: 5px;
+    overflow-x: auto;
+    font-size: 14px;
+    color: #333;
+}
 </style>
 </head>
 <body>
 
+<div class="container">
 <h1>Add Blog Post</h1>
 
 <label>GitHub Username:</label>
@@ -29,20 +98,49 @@ hr { margin: 20px 0; }
 
 <hr>
 
+<label>Post Title:</label>
 <input type="text" id="title" placeholder="Post Title">
-<textarea id="content" placeholder="Post Content" rows="6"></textarea>
+
+<label>Post Content (Markdown or HTML supported):</label>
+<textarea id="content" placeholder="Write your post here..." rows="10"></textarea>
+
+<label>Optional Image URL:</label>
+<input type="text" id="image" placeholder="https://example.com/image.jpg">
 
 <button type="button" onclick="addPost()">Add Post to GitHub</button>
 
+<h2>Live Preview:</h2>
+<div class="preview" id="preview"></div>
+
 <pre id="output"></pre>
+</div>
 
 <script>
-// Helper to safely encode Unicode for GitHub API
+// Encode Unicode safely
 function base64EncodeUnicode(str) {
     return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g,
         (match, p1) => String.fromCharCode('0x' + p1)));
 }
 
+// Update preview live
+document.getElementById('title').addEventListener('input', updatePreview);
+document.getElementById('content').addEventListener('input', updatePreview);
+document.getElementById('image').addEventListener('input', updatePreview);
+
+function updatePreview() {
+    const title = document.getElementById('title').value.trim();
+    const content = document.getElementById('content').value.trim();
+    const image = document.getElementById('image').value.trim();
+
+    let html = '';
+    if(title) html += `<h2>${title}</h2>`;
+    if(image) html += `<img src="${image}" alt="Post Image">`;
+    if(content) html += `<p>${content.replace(/\n/g,'<br>')}</p>`;
+
+    document.getElementById('preview').innerHTML = html;
+}
+
+// Main function to add post
 async function addPost() {
     const username = document.getElementById('username').value.trim();
     const repo = document.getElementById('repo').value.trim();
@@ -50,19 +148,25 @@ async function addPost() {
     const token = document.getElementById('token').value.trim();
     const title = document.getElementById('title').value.trim();
     const content = document.getElementById('content').value.trim();
+    const image = document.getElementById('image').value.trim();
     const output = document.getElementById('output');
 
     output.textContent = '';
 
     if(!username || !repo || !token || !title || !content) {
-        alert("Please fill in all fields.");
+        alert("Please fill in all required fields (title & content).");
         return;
     }
 
-    const newPost = { title, date: new Date().toISOString().split('T')[0], content };
+    const newPost = {
+        title,
+        date: new Date().toISOString().split('T')[0],
+        content,
+        image: image || null
+    };
 
     try {
-        // 1️⃣ Fetch current posts.json
+        // Fetch existing posts
         const getResp = await fetch(`https://api.github.com/repos/${username}/${repo}/contents/posts.json?ref=${branch}`, {
             headers: { Authorization: `token ${token}` }
         });
@@ -70,17 +174,22 @@ async function addPost() {
         const data = await getResp.json();
 
         if(!data.content) {
-            output.textContent = 'Failed to fetch posts.json. Make sure it exists in your repo.';
+            output.textContent = 'Failed to fetch posts.json. Make sure it exists and has valid JSON.';
             return;
         }
 
         const sha = data.sha;
-        const existingContent = JSON.parse(atob(data.content));
+        let existingContent = [];
+        try {
+            existingContent = JSON.parse(atob(data.content));
+            if (!Array.isArray(existingContent)) existingContent = [];
+        } catch(e) {
+            existingContent = [];
+        }
 
-        // 2️⃣ Append new post
         existingContent.push(newPost);
 
-        // 3️⃣ Update posts.json on GitHub
+        // Update GitHub
         const updateResp = await fetch(`https://api.github.com/repos/${username}/${repo}/contents/posts.json`, {
             method: 'PUT',
             headers: {
@@ -95,10 +204,21 @@ async function addPost() {
             })
         });
 
-        const updateData = await updateResp.json();
+        let updateData = {};
+        try {
+            updateData = await updateResp.json();
+        } catch(e) {
+            output.textContent = 'GitHub API did not return valid JSON. Check your token and repo.';
+            return;
+        }
 
         if(updateData.content) {
             output.textContent = `✅ Post added successfully! Check your blog.`;
+            // Reset form
+            document.getElementById('title').value = '';
+            document.getElementById('content').value = '';
+            document.getElementById('image').value = '';
+            updatePreview();
         } else {
             output.textContent = `❌ Error: ${JSON.stringify(updateData)}`;
         }
@@ -110,23 +230,5 @@ async function addPost() {
 }
 </script>
 
-</body>
-</html>
-            })
-        });
-
-        const updateData = await updateResp.json();
-        if(updateData.content) {
-            document.getElementById('output').textContent = `Post added successfully! Check your blog.`;
-        } else {
-            document.getElementById('output').textContent = `Error: ${JSON.stringify(updateData)}`;
-        }
-
-    } catch(err) {
-        document.getElementById('output').textContent = 'Error: ' + err;
-        console.error(err);
-    }
-}
-</script>
 </body>
 </html>
